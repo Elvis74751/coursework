@@ -79,6 +79,10 @@ trips %>%
   arrange(gender, desc(n)) %>%
   group_by (gender) %>%
   top_n(3)
+
+trips %>%
+  group_by (gender) %>%
+  count( start_station_name = end_station_name)
   
 # find the day with the most trips
 

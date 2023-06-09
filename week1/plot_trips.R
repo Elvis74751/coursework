@@ -141,7 +141,19 @@ unique(trips_with_weather$PRCP) %>% mean()
 # compute the average number of trips and standard deviation in number of trips by hour of the day
 # hint: use the hour() function from the lubridate package
 
+trips_with_weather_hour <- trips_with_weather %>% 
+                              select(ymd, starttime) %>% 
+                              mutate(hour = hour(starttime)) %>%
+                              group_by(ymd) %>%
+                              count(hour) %>%
+                              group_by(hour) %>%
+                              summarize( average_trips = mean(n), standard_dis = sd(n))
+
 # plot the above
+
+test1 <- trips_with_weather_hour %>% pivot_longer(names_to = "col1",values_to = "values" ) #%>% ggplot(aes(x = hour, y = average_trips)) + geom_line()
+
+
 
 # repeat this, but now split the results by day of the week (Monday, Tuesday, ...) or weekday vs. weekend days
 # hint: use the wday() function from the lubridate package

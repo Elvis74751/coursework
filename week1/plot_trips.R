@@ -144,16 +144,29 @@ unique(trips_with_weather$PRCP) %>% mean()
 trips_with_weather_hour <- trips_with_weather %>% 
                               select(ymd, starttime) %>% 
                               mutate(hour = hour(starttime)) %>%
-                              group_by(ymd) %>%
-                              count(hour) %>%
                               group_by(hour) %>%
-                              summarize( average_trips = mean(n), standard_dis = sd(n))
+                              count(ymd, name = "trips") %>%
+                              summarize( average_trips = mean(trips), standard_dis = sd(trips))
 
 # plot the above
 
-test1 <- trips_with_weather_hour %>% pivot_longer(names_to = "col1",values_to = "values" ) #%>% ggplot(aes(x = hour, y = average_trips)) + geom_line()
+trips_with_weather_hour %>% 
+  pivot_longer(cols = 2:3, names_to = "col1",values_to = "values" ) %>% 
+  ggplot(aes(x = hour, y = values, color = col1)) + geom_line()
 
 
 
 # repeat this, but now split the results by day of the week (Monday, Tuesday, ...) or weekday vs. weekend days
 # hint: use the wday() function from the lubridate package
+
+trips_with_weather_weekday <- trips_with_weather %>%
+                                select(ymd) %>%
+                                mutate(day = wday(ymd)) %>%
+                                group_by(day) %>%
+                                count(ymd, name = "trips") %>%
+                                summarize(average_trips = mean(trips), standard_dev = sd(trips))
+                                
+trips_with_weather_weekday %>% 
+    pivot_longer(cols = 2:3, names_to = "col1", values_to = "values" ) %>%
+    ggplot(aes(x = day, y = values, color = col1)) + geom_line()
+

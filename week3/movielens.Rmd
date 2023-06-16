@@ -35,6 +35,14 @@ head(ratings) %>% kable()
 
 ```{r dist-ratings}
 # plot the distribution of rating values https://speakerdeck.com/jhofman/modeling-social-data-lecture-2-introduction-to-counting?slide=26
+
+ratings_distribution <- ratings %>% 
+                        group_by(rating)
+
+ratings_distribution %>% ggplot(aes(x = rating)) + geom_histogram()
+
+
+
 ```
 
 ## Per-movie stats
@@ -42,22 +50,37 @@ head(ratings) %>% kable()
 ```{r aggregate-by-movie}
 # aggregate ratings by movie, computing mean rating and number of ratings
 # hint: use the n() function for easy counting within a group
+
+ratings_average_count_rating_by_movie <-  ratings %>% 
+                                    group_by(movie_id) %>% 
+                                    summarize(mean_rating = mean(rating), num_of_ratings = n())
+
 ```
 
 ```{r dist-movie-popularity}
 # plot distribution of movie popularity (= number of ratings the movie received)
 # hint: try scale_x_log10() for a logarithmic x axis
+
+ratings_average_count_rating_by_movie %>% ggplot(aes(x = num_of_ratings)) + geom_density() +  scale_x_log10()
+
 ```
 
 ```{r dist-mean-ratings-by-movie}
 # plot distribution of mean ratings by movie https://speakerdeck.com/jhofman/modeling-social-data-lecture-2-introduction-to-counting?slide=28
 # hint: try geom_histogram and geom_density
+
+ratings_average_count_rating_by_movie %>% ggplot(aes(x = mean_rating)) + geom_density() + geom_histogram()
+
 ```
 
 ```{r cdf-movie-pop}
 # rank movies by popularity (number of ratings) and compute the cdf, or fraction of all views covered by the top-k movies https://speakerdeck.com/jhofman/modeling-social-data-lecture-2-introduction-to-counting?slide=30
 # hint: use dplyr's rank and arrange functions, and the base R sum and cumsum functions
 # store the result in a new data frame so you can use it in creating figure 2 from the paper below
+
+ratings_cdf <- ratings %>% group_by(movie_id) %>% summarize(count = n()) %>% mutate(rank = rank(desc(count))) %>% arrange(rank) %>% mutate(cumsum = cumsum(count)) %>% mutate(CDF = (cumsum / sum(count)) * 100)
+
+ ggplot(ratings_cdf, aes(x = rank, y = CDF)) + geom_line()
 
 # plot the CDF of movie popularity
 ```
@@ -67,11 +90,17 @@ head(ratings) %>% kable()
 
 ```{r aggregate-by-user}
 # aggregate ratings by user, computing mean and number of ratings
+
+ratings_by_user <- ratings %>% group_by(user_id) %>% summarize(ratings_count = n(), ratings_mean = mean(rating))
+
 ```
 
 ```{r dist-user-activity}
 # plot distribution of user activity (= number of ratings the user made)
 # hint: try a log scale here
+
+ggplot(ratings_by_user, aes(x = ratings_count)) + geom_density() + scale_x_log10()
+
 ```
 
 # Anatomy of the long tail
@@ -91,4 +120,48 @@ head(ratings) %>% kable()
 # paper, produce one curve for the 100% user satisfaction level and
 # another for 90%---do not, however, bother implementing the null
 # model (shown in the dashed lines).
+
+#dataframe that contains user_id and movie_id so the ratings_rank_by_user can get the user_id column
+#back by doing a inner join between ratings_rank_by_user and ratings_user_and_movies
+
+ratings_users_and_movies <- ratings %>% select(user_id, movie_id) %>% group_by(user_id, movie_id) %>% arrange(user_id,movie_id)
+
+#dataframe that contains each user's movies they reviewed arranged in order from most popular to least
+
+ratings_rank_by_user <- ratings %>% group_by(movie_id) %>% summarize(count = n()) %>% mutate(rank = rank(desc(count))) %>% inner_join(ratings_users_and_movies, ratings_long_tail, by=c('movie_id' = 'movie_id')) %>% group_by(user_id, rank) %>% arrange(user_id,rank)
+
+#dataframe that contains user_id, what the inventory has to be to reach 100% satisfaction, and
+#percent of the 100 satisfaction (the cumsum of 100% satisfaction). All of this is arranged
+#from lowest inventory to highest inventory
+
+ratings_100_pous <- ratings_rank_by_user %>% 
+  select(user_id, rank) %>% 
+  group_by(user_id) %>% 
+  summarize(inventory = max(rank)) %>% 
+  group_by(inventory) %>% 
+  summarise(count = n()) %>%
+  ungroup() %>% 
+  arrange(inventory) %>%
+  mutate(percent_pous = cumsum(count) / sum(count),
+    sat_level = '100')
+ 
+
+#dataframe that contains user_id, what the inventory has to be to reach 90% satisfaction, and
+#percent of the 90 satisfaction (the cumsum of 90% satisfaction). All of this is arranged
+#from lowest inventory to highest inventory
+
+ratings_90_pous <-  ratings_rank_by_user %>% 
+  select(user_id, rank) %>% 
+  group_by(user_id) %>% 
+  reframe(inventory = quantile(rank,0.90)) %>%
+  group_by(inventory) %>% 
+  summarise(count = n()) %>%
+  ungroup() %>% 
+  arrange(inventory) %>%
+  mutate(percent_pous = cumsum(count) / sum(count),
+    sat_level = '90')
+
+#bind_rows 
+bind_rows(ratings_100_pous, ratings_90_pous) %>% ggplot(aes(x = inventory, y = percent_pous, color = sat_level)) + geom_line()
+
 ```

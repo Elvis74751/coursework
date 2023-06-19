@@ -89,7 +89,7 @@ Plot the proportion of mentions for the terms "1883", "1910", and "1950" over ti
 
 figure_3a <- year_proportion %>% filter(term == '1883' | term == '1910' | term == '1950') %>% filter(year >= 1850 & year <= 2012)
 
-figure_3a %>% ggplot(aes(x = year, y = proportion_of_total, color = term_factor)) + geom_line()
+figure_3a %>% ggplot(aes(x = year, y = proportion_of_total, color = term_factor)) + geom_line() + scale_y_continuous(labels=scales::percent)
 
 ```
 
@@ -111,7 +111,7 @@ Go to the ngram viewer, enter the terms "1883", "1910", and "1950" and take a sc
 
 Add your screenshot for Part C below this line using the `![](figure_filename.png)` syntax and comment on similarities / differences.
 
-![]("C:\Users\elvis\Downloads\Ngrams.png")
+![](/Users/elvis\Downloads\Ngrams.png)
 
 While both graphs have a similar shape, the ngram viewer has smoother curves in its graph while also having higher percentages for each of its years being graphed.
 
@@ -128,7 +128,7 @@ Plot the raw counts for the terms "1883", "1910", and "1950" over time from 1850
 
 figure_3a_v2 <- year_proportion %>% filter(term == '1883' | term == '1910' | term == '1950') %>% filter(year >= 1850 & year <= 2012)
 
-figure_3a_v2 %>% ggplot(aes(x = year, y = volume, color = term_factor)) + geom_line()
+figure_3a_v2 %>% ggplot(aes(x = year, y = volume, color = term_factor)) + geom_line() + scale_y_continuous(labels=scales::comma)
 
 ```
 
@@ -146,7 +146,7 @@ Plot the total counts for each year over time, from 1850 to 2012. Use the `comma
 
 total_count_1850_2012 <- total_counts %>% filter( year >= 1850 & year <= 2012)
 
-total_count_1850_2012 %>% ggplot(aes(x = year, y = total_volume)) + geom_line()
+total_count_1850_2012 %>% ggplot(aes(x = year, y = total_volume)) + geom_line() + scale_y_continuous(labels=scales::comma)
 
 ```
 
@@ -167,6 +167,7 @@ For each year term, find the year where its proportion of mentions peaks (hits i
 ```{r compute-peaks}
 
 total_count_peak <- figure_3a %>% group_by(term) %>% filter(proportion_of_total == max(proportion_of_total))
+total_count_peak
 
 ```
 
@@ -176,7 +177,12 @@ Now, for each year term, find the minimum number of years it takes for the propo
 
 ```{r compute-half-lifes}
 
-total_count_half_life <- figure_3a %>% group_by(term) %>% mutate(peak_proportion = max(proportion_of_total)) %>% filter(proportion_of_total <= peak_proportion/2 & year > term) %>% filter(year == min(year)) %>% mutate(half_life = year-term)
+total_count_half_life <- figure_3a %>% 
+  group_by(term) %>% 
+  mutate(peak_proportion = max(proportion_of_total)) %>% 
+  filter(proportion_of_total <= peak_proportion/2 & year > term) %>% 
+  filter(year == min(year)) %>% 
+  mutate(half_life = year-term) #CHANGE TERM TO BE THE PEAK YEAR SOMEHOW 
 
 ```
 
@@ -188,6 +194,30 @@ Plot the half-life of each term over time from 1850 to 2012. Each point should r
 ```{r plot-half-lifes}
 
 total_count_half_life %>% ggplot(aes(x = year,y = half_life)) + geom_point(aes(color = term_factor)) + geom_smooth()
+
+#gets halflife for all term years
+figure_3a_all_years <- year_proportion %>% 
+  filter(year >= 1850 & year <= 2012) %>%
+  filter(term >= 1875 & year <= 1975) %>% 
+  group_by(term) %>% 
+  mutate(peak_proportion = max(proportion_of_total)) %>% 
+  filter(proportion_of_total <= peak_proportion/2 & year > term) %>% 
+  filter(year == min(year)) %>% 
+  mutate(half_life = year-term) %>% 
+  arrange(term)
+
+#graphs all the term years
+figure_3a_all_years %>% ggplot(aes(x = term,y = half_life)) + geom_point() + geom_smooth()
+
+#shows smallest half-life
+
+figure_3a_all_years %>% arrange(half_life) %>% 
+  
+
+
+#shows largest half-life
+
+figure_3a_all_years %>% arrange(desc(half_life))
 
 ```
 
@@ -204,6 +234,28 @@ The data from version 2 does not produce the same outcomes as version 1 data
 ## Your written answer
 
 Write up your answer to Part G here. Include code that shows the years with the smallest and largest half-lifes.
+
+#gets halflife for all term years
+figure_3a_all_years <- year_proportion %>% 
+  filter(year >= 1850 & year <= 2012) %>% 
+  group_by(term) %>% 
+  mutate(peak_proportion = max(proportion_of_total)) %>% 
+  filter(proportion_of_total <= peak_proportion/2 & year > term) %>% 
+  filter(year == min(year)) %>% 
+  mutate(half_life = year-term) %>% 
+  arrange(term) %>% 
+  select(term,year,half_life)
+
+#graphs all the term years
+figure_3a_all_years %>% ggplot(aes(x = term,y = half_life)) + geom_point() + geom_smooth()
+
+#shows smallest half-life
+
+figure_3a_all_years %>% filter(half_life == max(half_life))
+
+#shows largest half-lige
+
+figure_3a_all_years %>% filter(half_Life == min(half_life))
 
 # Makefile
 

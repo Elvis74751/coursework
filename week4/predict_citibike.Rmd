@@ -1,0 +1,196 @@
+---
+title: "predict_citibike.Rmd"
+output: pdf_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+library(here)
+library(scales)
+library(tidyverse)
+library(modelr)
+library(lubridate)
+
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Use the trips_per_day.tsv file that has one row for each day, the number of trips taken on that day, and the minimum temperature on that day.
+
+```{r dataframe set up}
+
+trips_per_day <- read_delim( 'trips_per_day.tsv', delim = '\t')
+
+```
+2. Split the data into randomly selected training, validation, and test sets, with 90% of the data for training and validating the model, and 10% for a final test set (to be used once and only once towards the end of this exercise). You can adapt the code from last week's complexity control notebook to do this. When comparing possible models, you can use a single validation fold or k-fold cross-validation if you'd like a more robust estimate.
+
+
+```{r spliting it up(training,validation,test)}
+#Training: 72
+#Validation: 18
+#Testing: 10
+
+trips_per_day <- trips_per_day %>% 
+  mutate(weekend = weekdays(ymd) == 'Saturday' | weekdays(ymd) == 'Sunday')
+
+
+set.seed(42)
+
+num_days <- nrow(trips_per_day)
+
+frac_train_validate <- 0.9
+
+num_train_validate <- floor(num_days * frac_train_validate)
+
+# randomly sample rows for the training and validation set 
+ndx <- sample(1:num_days, num_train_validate, replace=F)
+
+# used to fit the model
+trips_per_day_train_validate <- trips_per_day[ndx, ]
+
+# used to later test the fit
+trips_per_day_test <- trips_per_day[-ndx, ]
+
+# used to divide training and validation data
+
+num_days2 <- nrow(trips_per_day_train_validate)
+
+frac_train <- 0.8
+
+num_train <- floor(num_days2 * frac_train)
+
+#randomly sample rows for the training set
+
+ndx2 <- sample(1:num_days2, num_train, replace=F)
+
+trips_per_day_train <- trips_per_day_train_validate[ndx2, ]
+
+trips_per_day_validate <- trips_per_day_train_validate[-ndx2, ]
+
+rm(trips_per_day_train_validate)
+
+
+```
+
+Evaluate models from degree 1 to 8
+
+```{r evalute models}
+
+K <-  1:8
+
+train_err <- c()
+
+validate_err <- c()
+
+for (k in K) {
+  
+  # fit on the training data
+  model <- lm(num_trips ~ poly(tmin, k, raw = T), data = trips_per_day_train)
+  
+  # evaluate on the training data
+  train_err[k] <- sqrt(mean((predict(model, trips_per_day_train) - trips_per_day_train$num_trips)^2))
+  
+  # evaluate on the validate data
+  validate_err[k] <- sqrt(mean((predict(model, trips_per_day_validate) - trips_per_day_validate$num_trips)^2))
+}
+
+plot_data <- data.frame(K, train_err, validate_err) %>%
+  gather("split", "error", -K)
+
+ggplot(plot_data, aes(x=K, y=error, color=split)) +
+  geom_line() +
+  scale_x_continuous(breaks=K) +
+  xlab('Polynomial Degree') +
+  ylab('RMSE')
+
+#When I ran this graph, I found out that the 5th polynomial degree works best with the validation data
+
+```
+
+Let's re-fit this model on all of the data and plot the final result.
+
+```{r re-fit model}
+
+model <- lm(num_trips ~ poly(tmin, 5, raw = T), data = trips_per_day_train)
+
+trips_per_day_train <- trips_per_day_train %>%
+  add_predictions(model) %>%
+  mutate(split = "train")
+
+trips_per_day_validate <- trips_per_day_validate %>%
+  add_predictions(model) %>%
+  mutate(split = "validate")
+
+plot_data <- bind_rows(trips_per_day_train, trips_per_day_validate)
+
+ggplot(plot_data, aes(x = tmin, y = num_trips)) +
+  geom_point(aes(color = split)) +
+  geom_line(aes(y = pred)) +
+  xlab('Minimum temperature') +
+  ylab('Daily trips') +
+  scale_y_continuous()
+
+```
+
+Variations in number of riders based on our predictors
+
+```{r}
+
+#Current possible predictors 
+
+#prcp, snow, snwd, tmax, tmin, weektype, month
+
+#ggplot of each predictor and the number of trips dependent on them
+
+trips_per_day %>% ggplot(aes(x = tmin, y = num_trips)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = tmax, y = num_trips)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = snow, y = num_trips)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = snwd, y = num_trips)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = prcp, y = num_trips)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = weekend, y = num_trips)) + geom_point()
+
+#ggplot of number of trips throughout the year colored based on predictor
+  
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = tmin)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = tmax)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = snow)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = snwd)) + geom_point()
+
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = prcp, alpha = prcp > 0.3)) + geom_point( size = 3)
+
+trips_per_day %>% ggplot(aes(x = ymd, y = num_trips, color = weekend)) + geom_point()
+
+
+```
+
+Now I will start to include some of my own predictors to the regression line 
+
+What are some predictors we can add?
+
+
+
+```{r Custom Predictors}
+
+#use the idea of a model_list that holds multiple different sets of predictors within the c()
+
+model <- lm(num_trips ~ poly(tmin, 5, raw = T) + poly(tmax, 5, raw = T) + weekend + prcp:tmin + prcp:tmax , data = trips_per_day_train)
+
+trips_per_day_train <- trips_per_day_train %>%
+  add_predictions(model) %>%
+  mutate(split = "train")
+
+```
